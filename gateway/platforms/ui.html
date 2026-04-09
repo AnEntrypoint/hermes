@@ -9,10 +9,20 @@
 </script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/rippleui@1.12.1/dist/css/styles.css">
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
 <style>
 #log{height:calc(100vh - 140px);overflow-y:auto}
 .msg-user{justify-content:flex-end}
 .msg-assistant{justify-content:flex-start}
+.chat-bubble-secondary p{margin:0.25rem 0}
+.chat-bubble-secondary ul,.chat-bubble-secondary ol{margin:0.25rem 0;padding-left:1.25rem}
+.chat-bubble-secondary li{margin:0.1rem 0}
+.chat-bubble-secondary strong{font-weight:600}
+.chat-bubble-secondary h1,.chat-bubble-secondary h2,.chat-bubble-secondary h3{font-weight:700;margin:0.5rem 0 0.25rem}
+.chat-bubble-secondary code{background:rgba(0,0,0,0.15);padding:0.1rem 0.3rem;border-radius:3px;font-family:monospace;font-size:0.9em}
+.chat-bubble-secondary pre{background:rgba(0,0,0,0.15);padding:0.5rem;border-radius:4px;overflow-x:auto;margin:0.25rem 0}
+.chat-bubble-secondary pre code{background:none;padding:0}
+.chat-bubble-secondary blockquote{border-left:3px solid rgba(255,255,255,0.4);padding-left:0.75rem;margin:0.25rem 0;font-style:italic}
 </style>
 </head>
 <body class="bg-base-2 flex flex-col h-screen p-4 max-w-2xl mx-auto">
@@ -32,14 +42,25 @@ const msgs = [];
 const token = new URLSearchParams(location.search).get("token") || localStorage.getItem("token") || "";
 window.__debug.msgs = msgs;
 
+marked.use({ breaks: true, gfm: true });
+
 function render() {
-  applyDiff(log, msgs.map(m =>
-    createElement("div", { class: "flex " + (m.role === "user" ? "msg-user" : "msg-assistant") },
-      createElement("div", { class: "chat-bubble " + (m.role === "user" ? "chat-bubble-primary" : "chat-bubble-secondary") },
-        m.content
-      )
-    )
-  ));
+  const nodes = msgs.map(m => {
+    if (m.role === "user") {
+      return createElement("div", { class: "flex msg-user" },
+        createElement("div", { class: "chat-bubble chat-bubble-primary" }, m.content)
+      );
+    }
+    const el = document.createElement("div");
+    el.className = "flex msg-assistant";
+    const bubble = document.createElement("div");
+    bubble.className = "chat-bubble chat-bubble-secondary";
+    bubble.innerHTML = marked.parse(m.content);
+    el.appendChild(bubble);
+    return el;
+  });
+  log.innerHTML = "";
+  nodes.forEach(n => log.appendChild(n instanceof Element ? n : (() => { const d = document.createElement("div"); d.appendChild(n); return d; })()));
   log.scrollTop = log.scrollHeight;
 }
 

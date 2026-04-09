@@ -11,3 +11,4 @@
 - All three registered in PROVIDER_REGISTRY (auth_type=acp), resolve_acp_provider_credentials, run_agent.py dispatch, and hermes model setup wizard
 - Aliases: oc-acp, kilo-acp, kc-acp, gem-acp
 - Web UI at `GET /`: webjsx + Ripple UI chat interface served by api_server (gateway/platforms/ui.html, no build step)
+- Web UI markdown rendering: assistant messages now render via marked.js (GFM + line breaks) with styled lists, code blocks, blockquotes, and headings
