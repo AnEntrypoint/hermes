@@ -9,7 +9,6 @@
 </script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/rippleui@1.12.1/dist/css/styles.css">
 <script src="https://cdn.tailwindcss.com"></script>
-<script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
 <style>
 #log{height:calc(100vh - 140px);overflow-y:auto}
 .msg-user{justify-content:flex-end}
@@ -33,7 +32,7 @@
 <button class="btn btn-primary" type="submit">Send</button>
 </form>
 <script type="module">
-import { createElement, applyDiff } from "webjsx";
+import { createElement } from "webjsx";
 window.__debug = {};
 const log = document.getElementById("log");
 const inp = document.getElementById("inp");
@@ -42,25 +41,23 @@ const msgs = [];
 const token = new URLSearchParams(location.search).get("token") || localStorage.getItem("token") || "";
 window.__debug.msgs = msgs;
 
-marked.use({ breaks: true, gfm: true });
+const SYS = "Always respond using valid HTML fragments only. Never use markdown. Use <ul>, <ol>, <li>, <strong>, <em>, <p>, <code>, <pre>, <blockquote>, <h1>-<h3> as appropriate. No <html>, <head>, or <body> tags.";
 
 function render() {
-  const nodes = msgs.map(m => {
-    if (m.role === "user") {
-      return createElement("div", { class: "flex msg-user" },
-        createElement("div", { class: "chat-bubble chat-bubble-primary" }, m.content)
-      );
-    }
-    const el = document.createElement("div");
-    el.className = "flex msg-assistant";
-    const bubble = document.createElement("div");
-    bubble.className = "chat-bubble chat-bubble-secondary";
-    bubble.innerHTML = marked.parse(m.content);
-    el.appendChild(bubble);
-    return el;
-  });
   log.innerHTML = "";
-  nodes.forEach(n => log.appendChild(n instanceof Element ? n : (() => { const d = document.createElement("div"); d.appendChild(n); return d; })()));
+  msgs.filter(m => m.role !== "system").forEach(m => {
+    const wrap = document.createElement("div");
+    wrap.className = "flex " + (m.role === "user" ? "msg-user" : "msg-assistant");
+    const bubble = document.createElement("div");
+    bubble.className = "chat-bubble " + (m.role === "user" ? "chat-bubble-primary" : "chat-bubble-secondary");
+    if (m.role === "user") {
+      bubble.textContent = m.content;
+    } else {
+      bubble.innerHTML = m.content;
+    }
+    wrap.appendChild(bubble);
+    log.appendChild(wrap);
+  });
   log.scrollTop = log.scrollHeight;
 }
 
@@ -73,12 +70,13 @@ frm.addEventListener("submit", async e => {
   render();
   const headers = { "Content-Type": "application/json" };
   if (token) headers["Authorization"] = "Bearer " + token;
+  const payload = [{ role: "system", content: SYS }, ...msgs];
   const res = await fetch("/v1/chat/completions", {
     method: "POST",
     headers,
-    body: JSON.stringify({ model: "hermes-agent", messages: msgs })
+    body: JSON.stringify({ model: "hermes-agent", messages: payload })
   });
-  if (!res.ok) { msgs.push({ role: "assistant", content: "Error: " + res.status }); render(); return; }
+  if (!res.ok) { msgs.push({ role: "assistant", content: "<p>Error: " + res.status + "</p>" }); render(); return; }
   const data = await res.json();
   const reply = data.choices?.[0]?.message?.content ?? "";
   msgs.push({ role: "assistant", content: reply });
