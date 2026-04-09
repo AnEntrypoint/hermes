@@ -6,3 +6,4 @@
 - `gemini-acp` provider: subprocess client using `gemini --prompt PROMPT --output-format stream-json` (agent/gemini_client.py)
 - All three registered in PROVIDER_REGISTRY (auth_type=acp), resolve_acp_provider_credentials, run_agent.py dispatch, and hermes model setup wizard
 - Aliases: oc-acp, kilo-acp, kc-acp, gem-acp
+- Web UI at `GET /`: webjsx + Ripple UI chat interface served by api_server (gateway/platforms/ui.html, no build step)
