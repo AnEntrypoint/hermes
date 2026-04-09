@@ -2,6 +2,7 @@
 
 ### Fixed
 - `gateway/status.py`: catch `OSError`/`SystemError` from `os.kill` on Windows when checking stale PID files (previously crashed gateway on startup after a dirty shutdown)
+- `gateway/platforms/api_server.py`: allow same-origin browser requests without requiring `API_SERVER_CORS_ORIGINS` — the built-in UI at `GET /` can now call the API without a 403
 
 ### Added
 - `opencode-acp` provider: subprocess client using `opencode run PROMPT --format json` (agent/opencode_client.py)
