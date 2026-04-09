@@ -3643,6 +3643,39 @@ class AIAgent:
                 self._client_log_context(),
             )
             return client
+        if self.provider == "opencode-acp" or str(client_kwargs.get("base_url", "")).startswith("acp://opencode"):
+            from agent.opencode_client import OpenCodeClient
+
+            client = OpenCodeClient(**client_kwargs)
+            logger.info(
+                "OpenCode ACP client created (%s, shared=%s) %s",
+                reason,
+                shared,
+                self._client_log_context(),
+            )
+            return client
+        if self.provider == "kilocode-acp" or str(client_kwargs.get("base_url", "")).startswith("acp://kilocode"):
+            from agent.kilocode_client import KiloCodeClient
+
+            client = KiloCodeClient(**client_kwargs)
+            logger.info(
+                "KiloCode ACP client created (%s, shared=%s) %s",
+                reason,
+                shared,
+                self._client_log_context(),
+            )
+            return client
+        if self.provider == "gemini-acp" or str(client_kwargs.get("base_url", "")).startswith("acp://gemini"):
+            from agent.gemini_client import GeminiClient
+
+            client = GeminiClient(**client_kwargs)
+            logger.info(
+                "Gemini ACP client created (%s, shared=%s) %s",
+                reason,
+                shared,
+                self._client_log_context(),
+            )
+            return client
         client = OpenAI(**client_kwargs)
         logger.info(
             "OpenAI client created (%s, shared=%s) %s",

@@ -936,6 +936,9 @@ def select_provider_and_model(args=None):
         "llm-acp": "ACP LLM",
         "claude-agent-acp": "Claude Agent ACP",
         "claude-code-acp": "Claude Code ACP",
+        "opencode-acp": "OpenCode ACP",
+        "kilocode-acp": "KiloCode ACP",
+        "gemini-acp": "Gemini ACP",
         "custom": "Custom endpoint",
     }
     active_label = provider_labels.get(active, active) if active else "none"
@@ -960,6 +963,9 @@ def select_provider_and_model(args=None):
         ("copilot-acp", "GitHub Copilot ACP (spawns `copilot --acp --stdio`)"),
         ("claude-code-acp", "Claude Code ACP (uses local `claude` CLI as backend)"),
         ("claude-agent-acp", "Claude Agent ACP (spawns `claude-agent-acp --stdio`)"),
+        ("opencode-acp", "OpenCode ACP (uses local `opencode run` as backend)"),
+        ("kilocode-acp", "KiloCode ACP (uses local `kilo run` as backend)"),
+        ("gemini-acp", "Gemini ACP (uses local `gemini --prompt` as backend)"),
         ("llm-acp", "ACP LLM (generic ACP subprocess — any ACP-compatible LLM server)"),
         ("gemini", "Google AI Studio (Gemini models — OpenAI-compatible endpoint)"),
         ("zai", "Z.AI / GLM (Zhipu AI direct API)"),
@@ -1059,6 +1065,12 @@ def select_provider_and_model(args=None):
         _model_flow_claude_code_acp(config, current_model)
     elif selected_provider == "claude-agent-acp":
         _model_flow_claude_agent_acp(config, current_model)
+    elif selected_provider == "opencode-acp":
+        _model_flow_opencode_acp(config, current_model)
+    elif selected_provider == "kilocode-acp":
+        _model_flow_kilocode_acp(config, current_model)
+    elif selected_provider == "gemini-acp":
+        _model_flow_gemini_acp(config, current_model)
     elif selected_provider == "llm-acp":
         _model_flow_llm_acp(config, current_model)
     elif selected_provider == "copilot":
@@ -2253,6 +2265,144 @@ def _model_flow_claude_agent_acp(config, current_model=""):
 
     from hermes_cli.config import save_env_value
     save_env_value("CLAUDE_AGENT_ACP_COMMAND", cmd)
+
+    cfg = load_config()
+    model = cfg.get("model")
+    if not isinstance(model, dict):
+        model = {"default": model} if model else {}
+        cfg["model"] = model
+    model["provider"] = provider_id
+    model["base_url"] = pconfig.inference_base_url
+    model["api_mode"] = "chat_completions"
+    if model_name:
+        model["default"] = model_name
+    save_config(cfg)
+    deactivate_provider()
+
+    print(f"  Configured: {provider_id} via {cmd}")
+
+
+def _model_flow_opencode_acp(config, current_model=""):
+    import os
+    from hermes_cli.auth import PROVIDER_REGISTRY, deactivate_provider
+    from hermes_cli.config import load_config, save_config, save_env_value
+
+    del config
+    provider_id = "opencode-acp"
+    pconfig = PROVIDER_REGISTRY[provider_id]
+
+    env_cmd = os.getenv("OPENCODE_ACP_COMMAND", "").strip()
+    default_cmd = env_cmd or "opencode"
+    print("  OpenCode ACP uses your local `opencode run` CLI as the Hermes backend.")
+    print("  Each Hermes turn spawns `opencode run PROMPT --format json`.")
+    print(f"  Current command: {default_cmd}")
+    print()
+
+    try:
+        cmd = input(f"  Command [{default_cmd}]: ").strip() or default_cmd
+    except (KeyboardInterrupt, EOFError):
+        print()
+        return
+
+    try:
+        model_name = input("  Model name in provider/model format (or Enter to skip): ").strip()
+    except (KeyboardInterrupt, EOFError):
+        print()
+        return
+
+    save_env_value("OPENCODE_ACP_COMMAND", cmd)
+
+    cfg = load_config()
+    model = cfg.get("model")
+    if not isinstance(model, dict):
+        model = {"default": model} if model else {}
+        cfg["model"] = model
+    model["provider"] = provider_id
+    model["base_url"] = pconfig.inference_base_url
+    model["api_mode"] = "chat_completions"
+    if model_name:
+        model["default"] = model_name
+    save_config(cfg)
+    deactivate_provider()
+
+    print(f"  Configured: {provider_id} via {cmd}")
+
+
+def _model_flow_kilocode_acp(config, current_model=""):
+    import os
+    from hermes_cli.auth import PROVIDER_REGISTRY, deactivate_provider
+    from hermes_cli.config import load_config, save_config, save_env_value
+
+    del config
+    provider_id = "kilocode-acp"
+    pconfig = PROVIDER_REGISTRY[provider_id]
+
+    env_cmd = os.getenv("KILOCODE_ACP_COMMAND", "").strip()
+    default_cmd = env_cmd or "kilo"
+    print("  KiloCode ACP uses your local `kilo run` CLI as the Hermes backend.")
+    print("  Each Hermes turn spawns `kilo run PROMPT --format json`.")
+    print(f"  Current command: {default_cmd}")
+    print()
+
+    try:
+        cmd = input(f"  Command [{default_cmd}]: ").strip() or default_cmd
+    except (KeyboardInterrupt, EOFError):
+        print()
+        return
+
+    try:
+        model_name = input("  Model name in provider/model format (or Enter to skip): ").strip()
+    except (KeyboardInterrupt, EOFError):
+        print()
+        return
+
+    save_env_value("KILOCODE_ACP_COMMAND", cmd)
+
+    cfg = load_config()
+    model = cfg.get("model")
+    if not isinstance(model, dict):
+        model = {"default": model} if model else {}
+        cfg["model"] = model
+    model["provider"] = provider_id
+    model["base_url"] = pconfig.inference_base_url
+    model["api_mode"] = "chat_completions"
+    if model_name:
+        model["default"] = model_name
+    save_config(cfg)
+    deactivate_provider()
+
+    print(f"  Configured: {provider_id} via {cmd}")
+
+
+def _model_flow_gemini_acp(config, current_model=""):
+    import os
+    from hermes_cli.auth import PROVIDER_REGISTRY, deactivate_provider
+    from hermes_cli.config import load_config, save_config, save_env_value
+
+    del config
+    provider_id = "gemini-acp"
+    pconfig = PROVIDER_REGISTRY[provider_id]
+
+    env_cmd = os.getenv("GEMINI_ACP_COMMAND", "").strip()
+    default_cmd = env_cmd or "gemini"
+    print("  Gemini ACP uses your local `gemini` CLI as the Hermes backend.")
+    print("  Each Hermes turn spawns `gemini --prompt PROMPT --output-format stream-json --approval-mode yolo`.")
+    print(f"  Current command: {default_cmd}")
+    print()
+
+    try:
+        cmd = input(f"  Command [{default_cmd}]: ").strip() or default_cmd
+    except (KeyboardInterrupt, EOFError):
+        print()
+        return
+
+    try:
+        model_name = input("  Model name (or Enter to skip): ").strip()
+    except (KeyboardInterrupt, EOFError):
+        print()
+        return
+
+    save_env_value("GEMINI_ACP_COMMAND", cmd)
 
     cfg = load_config()
     model = cfg.get("model")

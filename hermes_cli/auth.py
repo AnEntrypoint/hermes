@@ -264,6 +264,27 @@ PROVIDER_REGISTRY: Dict[str, ProviderConfig] = {
         inference_base_url="acp://claude-code",
         base_url_env_var="CLAUDE_CODE_ACP_BASE_URL",
     ),
+    "opencode-acp": ProviderConfig(
+        id="opencode-acp",
+        name="OpenCode ACP",
+        auth_type="acp",
+        inference_base_url="acp://opencode",
+        base_url_env_var="OPENCODE_ACP_BASE_URL",
+    ),
+    "kilocode-acp": ProviderConfig(
+        id="kilocode-acp",
+        name="KiloCode ACP",
+        auth_type="acp",
+        inference_base_url="acp://kilocode",
+        base_url_env_var="KILOCODE_ACP_BASE_URL",
+    ),
+    "gemini-acp": ProviderConfig(
+        id="gemini-acp",
+        name="Gemini ACP",
+        auth_type="acp",
+        inference_base_url="acp://gemini",
+        base_url_env_var="GEMINI_ACP_BASE_URL",
+    ),
 }
 
 
@@ -849,6 +870,9 @@ def resolve_provider(
         "acp-llm": "llm-acp", "llmacp": "llm-acp",
         "claude-acp": "claude-agent-acp", "claude-agent": "claude-agent-acp",
         "claude-code-acp": "claude-code-acp", "cc-acp": "claude-code-acp",
+        "opencode-acp": "opencode-acp", "oc-acp": "opencode-acp",
+        "kilocode-acp": "kilocode-acp", "kilo-acp": "kilocode-acp", "kc-acp": "kilocode-acp",
+        "gemini-acp": "gemini-acp", "gem-acp": "gemini-acp",
         "aigateway": "ai-gateway", "vercel": "ai-gateway", "vercel-ai-gateway": "ai-gateway",
         "opencode": "opencode-zen", "zen": "opencode-zen",
         "qwen-portal": "qwen-oauth", "qwen-cli": "qwen-oauth", "qwen-oauth": "qwen-oauth",
@@ -2392,6 +2416,18 @@ def resolve_acp_provider_credentials(provider_id: str) -> Dict[str, Any]:
         command = os.getenv("CLAUDE_AGENT_ACP_COMMAND", "").strip() or "claude-agent-acp"
         raw_args = os.getenv("CLAUDE_AGENT_ACP_ARGS", "").strip()
         args = shlex.split(raw_args) if raw_args else ["--stdio"]
+    elif provider_id == "opencode-acp":
+        command = os.getenv("OPENCODE_ACP_COMMAND", "").strip() or "opencode"
+        raw_args = os.getenv("OPENCODE_ACP_ARGS", "").strip()
+        args = shlex.split(raw_args) if raw_args else []
+    elif provider_id == "kilocode-acp":
+        command = os.getenv("KILOCODE_ACP_COMMAND", "").strip() or "kilo"
+        raw_args = os.getenv("KILOCODE_ACP_ARGS", "").strip()
+        args = shlex.split(raw_args) if raw_args else []
+    elif provider_id == "gemini-acp":
+        command = os.getenv("GEMINI_ACP_COMMAND", "").strip() or "gemini"
+        raw_args = os.getenv("GEMINI_ACP_ARGS", "").strip()
+        args = shlex.split(raw_args) if raw_args else ["--output-format", "stream-json", "--approval-mode", "yolo"]
     else:
         command = os.getenv("ACP_LLM_COMMAND", "").strip()
         if not command:
