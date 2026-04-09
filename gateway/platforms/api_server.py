@@ -326,7 +326,18 @@ class APIServerAdapter(BasePlatformAdapter):
 
     def _cors_headers_for_origin(self, origin: str) -> Optional[Dict[str, str]]:
         """Return CORS headers for an allowed browser origin."""
-        if not origin or not self._cors_origins:
+        if not origin:
+            return None
+
+        own_origin = f"http://{self._host}:{self._port}"
+        if origin == own_origin:
+            headers = dict(_CORS_HEADERS)
+            headers["Access-Control-Allow-Origin"] = origin
+            headers["Vary"] = "Origin"
+            headers["Access-Control-Max-Age"] = "600"
+            return headers
+
+        if not self._cors_origins:
             return None
 
         if "*" in self._cors_origins:
@@ -347,6 +358,10 @@ class APIServerAdapter(BasePlatformAdapter):
     def _origin_allowed(self, origin: str) -> bool:
         """Allow non-browser clients and explicitly configured browser origins."""
         if not origin:
+            return True
+
+        own_origin = f"http://{self._host}:{self._port}"
+        if origin == own_origin:
             return True
 
         if not self._cors_origins:
