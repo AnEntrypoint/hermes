@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- `gateway/status.py`: catch `OSError`/`SystemError` from `os.kill` on Windows when checking stale PID files (previously crashed gateway on startup after a dirty shutdown)
+
 ### Added
 - `opencode-acp` provider: subprocess client using `opencode run PROMPT --format json` (agent/opencode_client.py)
 - `kilocode-acp` provider: subprocess client using `kilo run PROMPT --format json` (agent/kilocode_client.py)
