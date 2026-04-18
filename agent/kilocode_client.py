@@ -1,16 +1,16 @@
 from __future__ import annotations
 
-import json
 import os
-import queue
 import shlex
-import shutil
-import subprocess
-import threading
-import time
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
+
+from agent.acp_subprocess import (
+    ensure_hermes_llm_agent,
+    parse_opencode_style,
+    run_acp_subprocess,
+)
 
 ACP_MARKER_BASE_URL = "acp://kilocode"
 _DEFAULT_TIMEOUT_SECONDS = 900.0
@@ -25,40 +25,8 @@ def _resolve_args() -> list[str]:
     return shlex.split(raw) if raw else []
 
 
-def _extract_text(line: str) -> str:
-    try:
-        evt = json.loads(line)
-    except Exception:
-        return line.strip()
-
-    # kilo's stream-json emits events shaped like
-    #   {"type":"text","part":{"type":"text","text":"PONG", ...}}
-    # Only extract text when the event is actually a text event — otherwise
-    # step_start / step_finish / tool_call events would leak their metadata
-    # (e.g. the literal string "text" from evt["type"]) into the reply.
-    event_type = evt.get("type")
-    part = evt.get("part")
-    if isinstance(part, dict):
-        part_text = part.get("text")
-        if isinstance(part_text, str) and part_text.strip() and (
-            part.get("type") == "text" or event_type == "text"
-        ):
-            return part_text
-
-    if event_type == "text":
-        for key in ("text", "content", "output", "message", "result"):
-            val = evt.get(key)
-            if isinstance(val, str) and val.strip():
-                return val.strip()
-            if isinstance(val, list):
-                parts = [
-                    b.get("text", "") for b in val
-                    if isinstance(b, dict) and b.get("type") == "text"
-                ]
-                joined = "\n".join(p for p in parts if p)
-                if joined:
-                    return joined
-    return ""
+def _kilo_config_dir() -> Path:
+    return Path(os.path.expanduser("~/.config/kilo"))
 
 
 class _KCChatCompletions:
@@ -98,38 +66,6 @@ class KiloCodeClient:
     def close(self) -> None:
         self.is_closed = True
 
-    def _resolve_launch_command(self) -> tuple[str, list[str]]:
-        """Resolve the actual executable to spawn.
-
-        On Windows, npm installs kilo as a ``kilo.cmd`` batch shim that
-        trampolines into ``node.exe <...>/bin/kilo``. cmd.exe imposes an
-        8191-character command-line limit on the whole invocation, which
-        Hermes prompts routinely exceed once system prompts and tool schemas
-        are serialised. Skip the shim and invoke the Node entry script
-        directly so the only remaining cap is the 32 KiB CreateProcess limit.
-
-        Returns ``(command, prefix_args)`` — typically ``(node, [entry])`` on
-        Windows when the shim is detected, or ``(self._command, [])``
-        otherwise.
-        """
-        cmd = self._command or ""
-        if os.name != "nt":
-            return cmd, []
-        lowered = cmd.lower()
-        if not (lowered.endswith(".cmd") or lowered.endswith(".bat")):
-            return cmd, []
-
-        shim_dir = os.path.dirname(cmd)
-        entry = os.path.join(
-            shim_dir, "node_modules", "@kilocode", "cli", "bin", "kilo"
-        )
-        if not os.path.isfile(entry):
-            return cmd, []
-        node_exe = os.path.join(shim_dir, "node.exe")
-        if not os.path.isfile(node_exe):
-            node_exe = shutil.which("node") or "node"
-        return node_exe, [entry]
-
     def _create_chat_completion(
         self,
         *,
@@ -138,8 +74,27 @@ class KiloCodeClient:
         timeout: float | None = None,
         **_: Any,
     ) -> Any:
+        ensure_hermes_llm_agent(_kilo_config_dir())
         prompt = _messages_to_prompt(messages or [])
-        text = self._run_prompt(prompt, model=model, timeout_seconds=float(timeout or _DEFAULT_TIMEOUT_SECONDS))
+
+        cli_args = list(self._args) + ["run", "--format", "json"]
+        # Use the zero-tool hermes-llm agent by default so kilo performs a
+        # single LLM completion and exits on step-finish instead of looping
+        # through its own tool-calling turns.
+        if "--agent" not in cli_args:
+            cli_args += ["--agent", "hermes-llm"]
+        if model:
+            cli_args += ["--model", model]
+
+        text = run_acp_subprocess(
+            self._command,
+            cli_args,
+            prompt,
+            parse_event=parse_opencode_style,
+            timeout_seconds=float(timeout or _DEFAULT_TIMEOUT_SECONDS),
+            cwd=self._cwd,
+            cli_name="kilo",
+        )
         usage = SimpleNamespace(
             prompt_tokens=0,
             completion_tokens=0,
@@ -155,75 +110,6 @@ class KiloCodeClient:
         )
         choice = SimpleNamespace(message=msg, finish_reason="stop")
         return SimpleNamespace(choices=[choice], usage=usage, model=model or "kilocode-acp")
-
-    def _run_prompt(self, prompt: str, *, model: str | None = None, timeout_seconds: float) -> str:
-        command, prefix_args = self._resolve_launch_command()
-        cmd = [command] + prefix_args + self._args + ["run", "--format", "json"]
-        if model:
-            cmd += ["--model", model]
-
-        # Pass the prompt via stdin rather than as a positional argument. Kilo
-        # reads stdin when no message is supplied, which sidesteps both
-        # Windows' 32 KiB CreateProcess cap and the 8 KiB cmd.exe line limit
-        # that bites when node wraps through a .cmd shim.
-        try:
-            proc = subprocess.Popen(
-                cmd,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                encoding="utf-8",
-                bufsize=1,
-                cwd=self._cwd,
-            )
-        except FileNotFoundError as exc:
-            raise RuntimeError(
-                f"Could not start kilo command '{self._command}'. "
-                "Install kilocode or set KILOCODE_ACP_COMMAND."
-            ) from exc
-
-        try:
-            proc.stdin.write(prompt)
-            proc.stdin.close()
-        except Exception:
-            try: proc.kill()
-            except Exception: pass
-            raise
-
-        inbox: queue.Queue[str] = queue.Queue()
-
-        def _reader() -> None:
-            for line in proc.stdout:
-                line = line.strip()
-                if line:
-                    inbox.put(line)
-
-        threading.Thread(target=_reader, daemon=True).start()
-
-        parts: list[str] = []
-        deadline = time.time() + timeout_seconds
-        while time.time() < deadline:
-            if proc.poll() is not None and inbox.empty():
-                break
-            try:
-                line = inbox.get(timeout=0.1)
-            except queue.Empty:
-                continue
-            text = _extract_text(line)
-            if text:
-                parts.append(text)
-
-        if proc.poll() is None:
-            try:
-                proc.terminate()
-                proc.wait(timeout=5)
-            except Exception:
-                proc.kill()
-        if not parts:
-            stderr_out = (proc.stderr.read() or "").strip()
-            raise RuntimeError(f"kilo returned no content. stderr: {stderr_out[:500]}")
-        return "\n".join(parts)
 
 
 def _messages_to_prompt(messages: list[dict[str, Any]]) -> str:
