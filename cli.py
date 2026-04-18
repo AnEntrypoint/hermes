@@ -1003,8 +1003,19 @@ def _cprint(text: str):
     Raw ANSI escapes written via print() are swallowed by patch_stdout's
     StdoutProxy.  Routing through print_formatted_text(ANSI(...)) lets
     prompt_toolkit parse the escapes and render real colors.
+
+    Falls back to plain stdout when no interactive console is available
+    (e.g. subprocess pipes, CI, Windows non-TTY parents) — prompt_toolkit
+    raises NoConsoleScreenBufferError in that case.
     """
-    _pt_print(_PT_ANSI(text))
+    try:
+        _pt_print(_PT_ANSI(text))
+    except Exception:
+        try:
+            sys.stdout.write(str(text) + "\n")
+            sys.stdout.flush()
+        except Exception:
+            pass
 
 
 # ---------------------------------------------------------------------------
