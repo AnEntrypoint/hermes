@@ -60,3 +60,8 @@ mini-swe-agent/
 result
 .gm-stop-verified
 .codeinsight
+.plugkit-browser-profile/
+.plugkit-browser-profile-*/
+.plugkit-agent-worktree/
+.code-search/
+*.stackdump
